@@ -99,7 +99,7 @@ export const HandModel: React.FC<HandModelProps> = ({ data, calibration, side, p
       // 外展分量 (abduction) → 主要让拇指绕局部 X 轴负向旋转，
       // 使拇指骨骼从掌平面（XY 平面）抬起朝向用户（Z 负方向），实现真正的锥形外展
       // 注意：先前 +X 方向错误地使拇指向掌心后方倾斜（内收），故取反并增大
-      const abdX = -abduction * 1.8;    // 抬起远离掌心平面（朝向用户，锥形张合主分量）
+      const abdX = abduction * 1.8;     // 抬起远离掌心平面（朝向用户，锥形张合主分量）
       const abdZ = -abduction * 0.5;    // 掌平面内向外打开（远离食指方向，副分量）
       const abdY = abduction * 0.5;     // 外展时微旋使指腹朝外
 
