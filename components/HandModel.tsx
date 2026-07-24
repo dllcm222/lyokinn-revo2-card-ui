@@ -1,7 +1,12 @@
 
 import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Group, MathUtils } from 'three';
+import { Group, MathUtils, Quaternion, Vector3 } from 'three';
+
+// 预定义的旋转轴单位向量 (CMC 局部坐标系)
+const AXIS_X = new Vector3(1, 0, 0);  // 屈伸轴 (FE, 位于大多角骨)
+const AXIS_Y = new Vector3(0, 1, 0);  // 旋前/旋后轴 (PS, 绕骨长轴)
+const AXIS_Z = new Vector3(0, 0, 1);  // 收展轴 (AA, 位于第1掌骨)
 import { SensorReadings, SENSOR_MAP, HandSide, HandCalibration } from '../types';
 
 const Bone = ({ radius, length, color = "#f7d5b8" }: { radius: number; length: number; color?: string }) => (
@@ -80,47 +85,48 @@ export const HandModel: React.FC<HandModelProps> = ({ data, calibration, side, p
       const cmcTuck = clamp(D[SENSOR_MAP.THUMB_MCP], 0, 1);
       const mcpVal = (ipVal * 0.4) + (cmcTuck * 0.6);
       const abduction = clamp(derived.thumbAbduction ?? 0, 0, 1);
-      const opposition = clamp(derived.thumbOpposition ?? (1 - abduction), 0, 1);
 
-      // === 拇指腕掌关节 (CMC) — 鞍状关节 3 自由度生物力学模型 ===
-      // 参考文献: Hollister 1992 (J Orthop Res), Halilaj 2013 (J Biomech), Chang 2008 (TBME)
-      //   - 屈伸轴 (FE): 位于大多角骨内 → 局部 X 轴
-      //   - 收展轴 (AA): 位于第1掌骨内 → 局部 Z 轴
-      //   - 旋前/旋后轴 (PS): 绕骨长轴 → 局部 Y 轴
-      //     生理上由肌肉稳定(±3°), 但对掌时显著增大(可达23°, Chang 2008)
-      // 对掌 (opposition) 是复合运动 = 内收 + 屈曲 + 旋前 (百度百科/解剖学)
-      //   → 当 opposition 高时, 三者协同让拇指尖触及掌心及小指
+      // === 拇指腕掌关节 (CMC) — 鞍状关节 3-DOF 四元数模型 ===
+      // 参考文献:
+      //   - Hollister 1992 (J Orthop Res): FE 轴在大多角骨, AA 轴在第1掌骨, 两轴不垂直不相交
+      //   - Halilaj 2013 (J Biomech): Ztpm-Y-Xmc1 Euler 序列, 基于鞍状关节面几何
+      //   - Chang 2008 (TBME): 3 旋转轴, FE/AA 主导, PS 对掌时可达 23°
+      //   - Symes 2025 (Front Robot AI "Anthro-Thumb"): opposition 是独立控制通道
+      //
+      // 实现方式: 用四元数 (Quaternion) 组合,避免 Euler 角的万向锁和顺序依赖问题
+      // 每个 DOF 绕其真正的生物力学轴旋转, 然后用四元数乘法组合
+      // 组合顺序 (右到左应用): PS(骨自身扭转) → AA(掌平面收展) → FE(屈伸)
 
-      // 基准静止位置
-      const baseX = 0.1;   // 微抬，与四指同平面
-      const baseY = -0.05; // 初始扭转，指腹朝掌心
-      const baseZ = -0.25; // 基准偏深，拇指贴近手掌边缘
+      // 基础静止姿态四元数 (基准偏转,让拇指自然位于掌侧)
+      const baseAngleX = 0.1;   // 微抬
+      const baseAngleY = -0.05; // 初始扭转,指腹朝掌心
+      const baseAngleZ = -0.25; // 基准偏深
 
-      // --- DOF 1: 屈伸 (绕 X 轴) ---
-      // 屈曲时 +Y 朝 +Z (掌心方向) → +X 旋转
-      const rotX_flex = cmcTuck * 1.6;       // 屈曲: 弯向掌心
-      const rotX_abd = -abduction * 1.8;     // 外展: 抬起远离掌心 (方向已确认正确)
+      // --- DOF 1: 屈伸 (FE) — 绕 X 轴 ---
+      // cmcTuck 高 → 屈曲(弯向掌心); abduction 高 → 伸展(抬起远离掌心)
+      const angleFE = baseAngleX + cmcTuck * 1.6 - abduction * 1.8;
 
-      // --- DOF 2: 收展 (绕 Z 轴) ---
-      // +Z 旋转使 +Y 朝 -X (掌心方向/小指侧) = 内收; -Z 旋转 = 外展
-      const rotZ_opp = opposition * 1.7;     // 对掌: 扫掠跨越掌心朝小指 (内收方向, 对掌关键横向运动)
-      const rotZ_flex = cmcTuck * 0.3;       // 屈曲时微扫
-      const rotZ_abd = -abduction * 1.0;     // 外展: 掌平面内向外打开
+      // --- DOF 2: 收展 (AA) — 绕 Z 轴 ---
+      // cmcTuck 高 → 内收(对掌方向,扫向小指); abduction 高 → 外展(掌平面内打开)
+      const angleAA = baseAngleZ + cmcTuck * 1.7 - abduction * 1.0;
 
-      // --- DOF 3: 旋前/旋后 (绕 Y 轴, 骨长轴) — 此为先前缺失的自由度 ---
-      // 对掌复合时强力旋前让指腹对掌心; 外展时旋后让指腹朝外
-      const rotY_opp = opposition * 1.8;     // 对掌旋前: 指腹转向掌心 (核心, 使拇指能"贴"掌)
-      const rotY_flex = cmcTuck * 0.6;       // 屈曲时伴随旋前
-      const rotY_abd = abduction * 1.4;      // 外展旋后: 指腹朝外
+      // --- DOF 3: 旋前/旋后 (PS) — 绕 Y 轴 (骨长轴) ---
+      // cmcTuck 高 → 旋前(指腹转向掌心, 对掌核心); abduction 高 → 旋后(指腹朝外)
+      const anglePS = baseAngleY + cmcTuck * 1.8 + abduction * 1.4;
 
-      let targetX = baseX + rotX_flex + rotX_abd;
-      let targetY = baseY + rotY_opp + rotY_flex + rotY_abd;
-      let targetZ = baseZ + rotZ_opp + rotZ_flex + rotZ_abd;
+      // 构建各 DOF 的独立四元数
+      const qFE = new Quaternion().setFromAxisAngle(AXIS_X, angleFE);
+      const qAA = new Quaternion().setFromAxisAngle(AXIS_Z, angleAA);
+      const qPS = new Quaternion().setFromAxisAngle(AXIS_Y, anglePS);
+
+      // 组合: qTotal = qFE * qAA * qPS (右乘=先应用右边的)
+      // 几何意义: 先旋前扭转骨自身 → 再在掌平面内收展 → 最后屈伸
+      const qTarget = new Quaternion().multiplyQuaternions(qFE, qAA).multiply(qPS);
 
       // MCP (掌指关节)
-      let targetMcpZ = 0.0; 
+      let targetMcpZ = 0.0;
       let targetMcpX = -mcpVal * 1.2;
-      
+
       // IP (指间关节)
       let targetIpZ = 0.0;
       let targetIpX = -ipVal * 1.4;
@@ -130,17 +136,18 @@ export const HandModel: React.FC<HandModelProps> = ({ data, calibration, side, p
         const tp = calibration.thumbTuck;
         const currentRaw = data.raw;
         const tIdx = [SENSOR_MAP.THUMB_IP, SENSOR_MAP.THUMB_MCP, SENSOR_MAP.THUMB_SPREAD];
-        
+
         const dist = Math.sqrt(tIdx.reduce((acc, i) => acc + Math.pow(currentRaw[i] - (tp[i] || 0), 2), 0));
-        
-        if (dist < 400) { 
+
+        if (dist < 400) {
           const snap = 1.0 - (dist / 400);
-          // 贴紧掌心时的角度：指腹贴掌心
-          const tuckT = { x: -0.2, y: 0.5, z: 1.5 };
-          targetX = MathUtils.lerp(targetX, tuckT.x, snap);
-          targetY = MathUtils.lerp(targetY, tuckT.y, snap);
-          targetZ = MathUtils.lerp(targetZ, tuckT.z, snap);
-          
+          // 贴紧掌心时的目标四元数 (指腹贴掌心: 强力屈曲+内收+旋前)
+          const qTuck = new Quaternion()
+            .multiply(new Quaternion().setFromAxisAngle(AXIS_X, -0.2))
+            .multiply(new Quaternion().setFromAxisAngle(AXIS_Y, 0.5))
+            .multiply(new Quaternion().setFromAxisAngle(AXIS_Z, 1.5));
+          qTarget.slerp(qTuck, snap);
+
           targetMcpZ = MathUtils.lerp(targetMcpZ, 0.0, snap);
           targetMcpX = MathUtils.lerp(targetMcpX, -0.4, snap);
           targetIpZ = MathUtils.lerp(targetIpZ, 0.0, snap);
@@ -148,9 +155,8 @@ export const HandModel: React.FC<HandModelProps> = ({ data, calibration, side, p
         }
       }
 
-      thumbCMCRef.current.rotation.x = MathUtils.lerp(thumbCMCRef.current.rotation.x, targetX, alpha);
-      thumbCMCRef.current.rotation.y = MathUtils.lerp(thumbCMCRef.current.rotation.y, targetY, alpha);
-      thumbCMCRef.current.rotation.z = MathUtils.lerp(thumbCMCRef.current.rotation.z, targetZ, alpha);
+      // 用 slerp (球面线性插值) 平滑过渡四元数,避免 Euler 角插值的万向锁问题
+      thumbCMCRef.current.quaternion.slerp(qTarget, alpha);
 
       // 应用指间关节的旋转，主要在Z轴体现收拢，副在-X轴体现向内贴紧
       thumbMCPRef.current.rotation.z = MathUtils.lerp(thumbMCPRef.current.rotation.z, targetMcpZ, alpha);
