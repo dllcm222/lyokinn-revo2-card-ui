@@ -91,11 +91,12 @@ export const HandModel: React.FC<HandModelProps> = ({ data, calibration, side, p
       const baseY = -0.05; // 初始扭转，指腹朝掌心
       const baseZ = -0.25; // 基准偏深，拇指贴近手掌边缘
 
-      // 屈曲分量 (cmcTuck) → 主绕 X 轴正向让拇指内扣到掌心 + Y 轴 pronation 扭转
-      // 拇指骨骼沿 +Y 延伸，绕 X 正向使 +Y 朝 +Z（掌心方向）弯曲
-      const flexX = cmcTuck * 1.8;    // 主分量：内扣到掌心
-      const flexY = cmcTuck * 1.4;    // pronation：绕自身纵轴扭转，指腹转向掌心
-      const flexZ = cmcTuck * 0.3;    // 副分量：微扫掠保留对臥感
+      // 对掌分量 (cmcTuck) → 拇指特有的对掌(opposition)复合运动：
+      // 强力 Z 轴扫掠跨越掌心朝向小指 + 适度 X 轴弯曲贴向掌面 + Y 轴旋前让指腹对掌心
+      // 三者协调，使拇指尖能触及掌心及其他指尖（人类拇指的核心功能）
+      const flexZ = cmcTuck * 1.8;    // 主分量：扫掠跨越掌心朝向小指（对掌的关键横向运动）
+      const flexX = cmcTuck * 0.9;    // 副分量：弯曲贴向掌面（+Z 朝向用户/掌面）
+      const flexY = cmcTuck * 1.5;    // 旋前(pronation)：绕自身纵轴扭转，指腹转向掌心
 
       // 外展分量 (abduction) → 绕 X 负向抬起（伸展）+ 绕 Z 轴掌平面内打开 + Y 轴 supination
       // X 轴与屈曲共用（方向相反=伸展），Z 轴为正交第二自由度，组合形成锥形摆动范围
