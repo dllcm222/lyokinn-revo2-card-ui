@@ -105,6 +105,8 @@ export default function App() {
   const [smoothingAlpha, setSmoothingAlpha] = useState(0.25);
   const dataHistoryRef = useRef<number[][]>([]);
   const rawMedianRef = useRef<number[][]>([]);
+  // 快速标定：持续追踪所有传感器的 min/max
+  const calMinMaxRef = useRef<{ min: number[]; max: number[] } | null>(null);
   const [creepSubStep, setCreepSubStep] = useState<'HOLD_LOAD' | 'HOLD_RELEASE' | 'CYCLE'>('HOLD_LOAD');
   const creepLoadBufferRef = useRef<number[][]>([]);
   const creepUnloadBufferRef = useRef<number[][]>([]);
@@ -258,6 +260,13 @@ export default function App() {
     
     if (calStep !== CalibrationStep.IDLE && calStepCollecting) {
       setCalBuffer(prev => [...prev, data]);
+      // 快速标定：持续追踪每个传感器的 min/max
+      if (!completeCalibrationMode && calStep !== CalibrationStep.CREEP && calMinMaxRef.current) {
+        for (let i = 0; i < data.length && i < 12; i++) {
+          if (data[i] < calMinMaxRef.current.min[i]) calMinMaxRef.current.min[i] = data[i];
+          if (data[i] > calMinMaxRef.current.max[i]) calMinMaxRef.current.max[i] = data[i];
+        }
+      }
     }
 
     if (now - (window as any).lastSerialUpdate < 25) {
@@ -278,7 +287,7 @@ export default function App() {
 
     const result = processWithCARD(data, false);
     setCardResult(result);
-  }, [calStep, calStepCollecting, processWithCARD, isRecording]);
+  }, [calStep, calStepCollecting, completeCalibrationMode, processWithCARD, isRecording]);
 
   useEffect(() => {
     serialDataCallbackRef.current = handleSerialData;
@@ -444,6 +453,15 @@ export default function App() {
     setCalBuffer([]);
     setCalStepCollecting(false);
     setCompleteCalibrationMode(completeMode);
+    // 快速标定：初始化 min/max 追踪器
+    if (!completeMode) {
+      calMinMaxRef.current = {
+        min: Array(TOTAL_SENSORS).fill(Infinity),
+        max: Array(TOTAL_SENSORS).fill(-Infinity),
+      };
+    } else {
+      calMinMaxRef.current = null;
+    }
   };
 
   const startCalibrationStepCollecting = () => {
@@ -577,15 +595,49 @@ export default function App() {
   };
 
   const nextCalibrationStep = () => {
+    let newRanges = calibrations.ranges.map(r => ({ ...r }));
+
+    // 快速标定：使用持续追踪的 min/max，四步仅负责流程引导
+    if (!completeCalibrationMode && calStep !== CalibrationStep.CREEP && calMinMaxRef.current) {
+      const tracked = calMinMaxRef.current;
+      for (let i = 0; i < TOTAL_SENSORS; i++) {
+        if (tracked.min[i] !== Infinity) newRanges[i].min = tracked.min[i];
+        if (tracked.max[i] !== -Infinity) newRanges[i].max = tracked.max[i];
+      }
+
+      if (calStep === CalibrationStep.RELAX) {
+        setCalibrations({ ...calibrations, ranges: newRanges });
+        setCalStep(CalibrationStep.FIST);
+        setCalStepCollecting(false);
+      } else if (calStep === CalibrationStep.FIST) {
+        setCalibrations({ ...calibrations, ranges: newRanges });
+        setCalStep(CalibrationStep.FLAT);
+        setCalStepCollecting(false);
+      } else if (calStep === CalibrationStep.FLAT) {
+        setCalibrations({ ...calibrations, ranges: newRanges });
+        setCalStep(CalibrationStep.SPREAD);
+        setCalStepCollecting(false);
+      } else if (calStep === CalibrationStep.SPREAD) {
+        setCalibrations({ ...calibrations, ranges: newRanges, isCalibrated: true });
+        if (mlpBaseline.length === 12) {
+          setMlpBaseline(newRanges.map(r => r.min));
+        }
+        calMinMaxRef.current = null;
+        setCalStep(CalibrationStep.IDLE);
+        setCalStepCollecting(false);
+      }
+      setCalBuffer([]);
+      return;
+    }
+
+    // 完整标定模式：保持原有逐步逻辑
     const buffer = calBuffer;
-    // A. 稳定帧过滤：剔除前20%帧，只取稳定部分
     const stableStart = Math.floor(buffer.length * 0.2);
     const stableBuffer = buffer.slice(stableStart);
     const snapshot = stableBuffer.length > 0 
       ? stableBuffer[0].map((_, colIndex) => stableBuffer.reduce((acc, row) => acc + row[colIndex], 0) / stableBuffer.length)
       : rawData;
 
-    let newRanges = calibrations.ranges.map(r => ({ ...r }));
     const spreadIndices = [2, 4, 7, 10];
     
     if (calStep === CalibrationStep.RELAX) {
