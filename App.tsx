@@ -111,6 +111,7 @@ export default function App() {
 
   const [isRecording, setIsRecording] = useState(false);
   const recordingBufferRef = useRef<number[][]>([]);
+  const serialDataCallbackRef = useRef<((data: number[]) => void) | null>(null);
 
   const [trainingMode, setTrainingMode] = useState(false);
   const [mlpWeightsLoaded, setMlpWeightsLoaded] = useState(false);
@@ -261,6 +262,14 @@ export default function App() {
     setCardResult(result);
   }, [calStep, processWithCARD, isRecording]);
 
+  useEffect(() => {
+    serialDataCallbackRef.current = handleSerialData;
+  }, [handleSerialData]);
+
+  const stableSerialDataCallback = useCallback((data: number[]) => {
+    serialDataCallbackRef.current?.(data);
+  }, []);
+
   // --- Manual Mode CARD Processing ---
   useEffect(() => {
     if (manualMode) {
@@ -374,7 +383,7 @@ export default function App() {
 
     const port = ports[selectedPortIndex];
     if (port) {
-      const success = await serialService.connectToPort('RIGHT', port, handleSerialData);
+      const success = await serialService.connectToPort('RIGHT', port, stableSerialDataCallback);
       setConnected(success);
     } else {
       await handleAddPort();
