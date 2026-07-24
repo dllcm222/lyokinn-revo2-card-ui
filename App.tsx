@@ -104,6 +104,7 @@ export default function App() {
   const [decouplerEnabled, setDecouplerEnabled] = useState(false);
   const [smoothingAlpha, setSmoothingAlpha] = useState(0.25);
   const dataHistoryRef = useRef<number[][]>([]);
+  const rawMedianRef = useRef<number[][]>([]);
   const [creepSubStep, setCreepSubStep] = useState<'HOLD_LOAD' | 'HOLD_RELEASE' | 'CYCLE'>('HOLD_LOAD');
   const creepLoadBufferRef = useRef<number[][]>([]);
   const creepUnloadBufferRef = useRef<number[][]>([]);
@@ -159,8 +160,20 @@ export default function App() {
 
   // --- Logic: CARD Processing Pipeline ---
   const processWithCARD = useCallback((raw: number[], manual: boolean = false): CARDProcessingResult => {
-    const sourceData = manual ? manualData : raw;
-    
+    let sourceData = manual ? manualData : raw;
+
+    // 中值滤波：去除传感器随机尖刺抖动（窗口5帧，仅对真实传感器数据生效）
+    if (!manual) {
+      rawMedianRef.current.push([...sourceData]);
+      if (rawMedianRef.current.length > 5) rawMedianRef.current.shift();
+      if (rawMedianRef.current.length >= 3) {
+        sourceData = sourceData.map((_, i) => {
+          const vals = rawMedianRef.current.map(frame => frame[i]).sort((a, b) => a - b);
+          return vals[Math.floor(vals.length / 2)];
+        });
+      }
+    }
+
     mlpDecoupler.setEnabled(decouplerEnabled);
 
     const compensated = creepEnabled 
@@ -289,6 +302,7 @@ export default function App() {
       creepFilter.reset();
       mlpDecoupler.reset();
       filteredDataRef.current = Array(TOTAL_SENSORS).fill(0);
+      rawMedianRef.current = [];
     }
   }, [manualMode]);
 
