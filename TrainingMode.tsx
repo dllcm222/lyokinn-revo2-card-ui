@@ -27,7 +27,7 @@ const TARGET_FRAMES = RECORD_DURATION;
 
 interface Props {
   onBack: () => void;
-  onWeightsApplied: () => void;
+  onWeightsApplied: (baseline: number[], maxDelta: number[]) => void;
   connected: boolean;
   rawData: number[];
 }
@@ -164,7 +164,7 @@ export default function TrainingMode({ onBack, onWeightsApplied, connected, rawD
     mlpDecoupler.setWeights(trainedWeights);
     mlpDecoupler.reset();
     mlpDecoupler.setEnabled(true);
-    onWeightsApplied();
+    onWeightsApplied(baseline, maxDelta);
   };
 
   const exportData = () => {
