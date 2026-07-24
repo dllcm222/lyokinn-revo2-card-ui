@@ -1,0 +1,8 @@
+{
+  "name": " Lyokinn 手部动捕演示V0.0.2--强脑机械手右手",
+  "description": "临时演示测试，分指未实装",
+  "requestFramePermissions": [
+    "serial"
+  ],
+  "majorCapabilities": []
+}
