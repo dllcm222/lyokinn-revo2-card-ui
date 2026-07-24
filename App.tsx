@@ -114,6 +114,7 @@ export default function App() {
   const [isRecording, setIsRecording] = useState(false);
   const recordingBufferRef = useRef<number[][]>([]);
   const serialDataCallbackRef = useRef<((data: number[]) => void) | null>(null);
+  const filteredDataRef = useRef<number[]>(Array(TOTAL_SENSORS).fill(0));
 
   const [trainingMode, setTrainingMode] = useState(false);
   const [mlpWeightsLoaded, setMlpWeightsLoaded] = useState(false);
@@ -182,9 +183,11 @@ export default function App() {
       ? decoupledNormalized.map((v, i) => v * mlpMaxDelta[i] + baselines[i])
       : decoupledNormalized.map((v, i) => v + baselines[i]);
 
-    const filtered = cardResult.filtered.map((prev, i) => {
-      return smoothingAlpha * decoupled[i] + (1 - smoothingAlpha) * prev;
+    const filtered = decoupled.map((val, i) => {
+      const prev = filteredDataRef.current[i];
+      return smoothingAlpha * val + (1 - smoothingAlpha) * prev;
     });
+    filteredDataRef.current = filtered;
 
     const normalized = filtered.map((val, idx) => {
       const range = calibrations.ranges[idx];
@@ -225,7 +228,7 @@ export default function App() {
         middleWeightedMCP: (normalized[SENSOR_MAP.MIDDLE_MCP] * 0.7 + normalized[SENSOR_MAP.MIDDLE_PIP] * 0.3),
       },
     };
-  }, [manualData, calibrations, creepEnabled, decouplerEnabled, smoothingAlpha, cardResult.filtered, manualOpposition, manualDIP, mlpBaseline, mlpMaxDelta]);
+  }, [manualData, calibrations, creepEnabled, decouplerEnabled, smoothingAlpha, manualOpposition, manualDIP, mlpBaseline, mlpMaxDelta]);
 
   const processedData = useMemo((): SensorReadings => {
     return {
@@ -285,6 +288,7 @@ export default function App() {
     if (!manualMode) {
       creepFilter.reset();
       mlpDecoupler.reset();
+      filteredDataRef.current = Array(TOTAL_SENSORS).fill(0);
     }
   }, [manualMode]);
 
@@ -582,12 +586,6 @@ export default function App() {
        const flexionIndices = [0, 1, 3, 5, 6, 8, 9, 11];
        flexionIndices.forEach(idx => {
           if (idx < snapshot.length) newRanges[idx].max = snapshot[idx];
-       });
-       // D. 张开传感器max修正：握拳时指间皮肤牵引也会拉伸张开传感器
-       spreadIndices.forEach(idx => {
-          if (idx < snapshot.length && snapshot[idx] > newRanges[idx].max) {
-             newRanges[idx].max = snapshot[idx];
-          }
        });
        setCalibrations({ ...calibrations, ranges: newRanges });
        setCalStep(CalibrationStep.FLAT);

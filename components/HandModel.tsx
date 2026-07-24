@@ -65,7 +65,7 @@ export const HandModel: React.FC<HandModelProps> = ({ data, calibration, side, p
   useFrame(() => {
     const { normalized, derived } = data;
     const D = normalized;
-    const alpha = 0.15; 
+    const alpha = 0.25; 
     
     const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
     

@@ -260,10 +260,15 @@ export class MLPTrainer {
 // 逐指独立运动的通道映射
 // ═══════════════════════════════════════════════
 export const FINGER_CHANNELS: Record<string, { label: string; channels: number[]; instruction: string }> = {
-  thumb: {
-    label: '拇指',
+  thumb_tuck: {
+    label: '拇指内扣',
     channels: [0, 1, 2],  // THUMB_IP, THUMB_MCP, THUMB_SPD
-    instruction: '只弯曲/伸直拇指，其余手指保持伸直不动',
+    instruction: '保持拇指指间关节伸直，整体向掌心内扣（做"点赞"手势的反向，拇指向掌心里收），其余手指保持伸直不动',
+  },
+  thumb_ip: {
+    label: '拇指指间弯曲',
+    channels: [0, 1, 2],  // THUMB_IP, THUMB_MCP, THUMB_SPD
+    instruction: '保持拇指根部不动，只弯曲拇指最前端的指间关节（指尖向指根方向勾），其余手指保持伸直不动',
   },
   index: {
     label: '食指',
@@ -287,7 +292,7 @@ export const FINGER_CHANNELS: Record<string, { label: string; channels: number[]
   },
 };
 
-export const TRAINING_STEPS = ['rest', 'thumb', 'index', 'middle', 'ring_pinky', 'spread'] as const;
+export const TRAINING_STEPS = ['rest', 'thumb_tuck', 'thumb_ip', 'index', 'middle', 'ring_pinky', 'spread'] as const;
 export type TrainingStep = typeof TRAINING_STEPS[number];
 
 /**
