@@ -759,6 +759,19 @@ export default function App() {
     }
   }, [calBuffer.length, calStepCollecting, completeCalibrationMode, calStep, MIN_CAL_FRAMES]);
 
+  // 快速标定模式：步骤切换后自动开始下一步采集
+  useEffect(() => {
+    if (completeCalibrationMode) return;
+    if (calStep === CalibrationStep.IDLE || calStep === CalibrationStep.CREEP) return;
+    if (!calStepCollecting) {
+      const timer = setTimeout(() => {
+        setCalBuffer([]);
+        setCalStepCollecting(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [calStep, calStepCollecting, completeCalibrationMode]);
+
   const updateManual = (idx: number, val: number) => {
     setManualData(prev => {
         const n = [...prev];
