@@ -162,6 +162,7 @@ export default function TrainingMode({ onBack, onWeightsApplied, connected, rawD
   const applyWeights = () => {
     if (!trainedWeights) return;
     mlpDecoupler.setWeights(trainedWeights);
+    mlpDecoupler.reset();
     mlpDecoupler.setEnabled(true);
     onWeightsApplied();
   };

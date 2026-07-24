@@ -14,6 +14,7 @@ export interface SensorReadings {
     middleAbduction: number;
     ringAbduction: number;
     pinkyAbduction: number;
+    thumbWeightedMCP: number;
     indexWeightedMCP: number;
     middleWeightedMCP: number;
   };

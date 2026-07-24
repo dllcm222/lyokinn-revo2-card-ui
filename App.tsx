@@ -76,6 +76,7 @@ export default function App() {
   const [calStep, setCalStep] = useState<CalibrationStep>(CalibrationStep.IDLE);
   const [calBuffer, setCalBuffer] = useState<number[][]>([]);
   const [completeCalibrationMode, setCompleteCalibrationMode] = useState(false);
+  const [calStepCollecting, setCalStepCollecting] = useState(false);
 
   // CARD Processing State
   const [cardResult, setCardResult] = useState<CARDProcessingResult>({
@@ -94,6 +95,7 @@ export default function App() {
       middleAbduction: 0,
       ringAbduction: 0,
       pinkyAbduction: 0,
+      thumbWeightedMCP: 0,
       indexWeightedMCP: 0,
       middleWeightedMCP: 0,
     },
@@ -238,7 +240,7 @@ export default function App() {
     const now = Date.now();
     if (!(window as any).lastSerialUpdate) (window as any).lastSerialUpdate = 0;
     
-    if (calStep !== CalibrationStep.IDLE) {
+    if (calStep !== CalibrationStep.IDLE && calStepCollecting) {
       setCalBuffer(prev => [...prev, data]);
     }
 
@@ -318,6 +320,9 @@ export default function App() {
         const weights = data.weights || data;
         if (weights.input && weights.hidden && weights.output) {
           mlpDecoupler.setWeights(weights);
+          mlpDecoupler.reset();
+          mlpDecoupler.setEnabled(true);
+          setDecouplerEnabled(true);
           setMlpWeightsLoaded(true);
           if (Array.isArray(data.baseline) && data.baseline.length === 12) {
             setMlpBaseline(data.baseline);
@@ -419,7 +424,20 @@ export default function App() {
   const startCalibration = (completeMode: boolean = false) => {
     setCalStep(CalibrationStep.RELAX);
     setCalBuffer([]);
+    setCalStepCollecting(false);
     setCompleteCalibrationMode(completeMode);
+  };
+
+  const startCalibrationStepCollecting = () => {
+    setCalBuffer([]);
+    setCalStepCollecting(true);
+  };
+
+  const startCreepCalibration = () => {
+    setCalStep(CalibrationStep.CREEP);
+    setCreepSubStep('HOLD_LOAD');
+    setCalBuffer([]);
+    setCalStepCollecting(false);
   };
 
   // --- Data Recording Logic ---
@@ -440,12 +458,6 @@ export default function App() {
     a.download = `sensor-recording-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  };
-
-  const startCreepCalibration = () => {
-    setCalStep(CalibrationStep.CREEP);
-    setCreepSubStep('HOLD_LOAD');
-    setCalBuffer([]);
   };
 
   const exportCreepParams = () => {
@@ -524,6 +536,7 @@ export default function App() {
         if (weights.input && weights.hidden && weights.output &&
             Array.isArray(weights.input.weights) && Array.isArray(weights.hidden.weights) && Array.isArray(weights.output.weights)) {
           mlpDecoupler.setWeights(weights);
+          mlpDecoupler.reset();
           mlpDecoupler.setEnabled(true);
           setDecouplerEnabled(true);
           setMlpWeightsLoaded(true);
@@ -564,6 +577,7 @@ export default function App() {
        });
        setCalibrations({ ...calibrations, ranges: newRanges });
        setCalStep(CalibrationStep.FIST);
+       setCalStepCollecting(false);
     } else if (calStep === CalibrationStep.FIST) {
        const flexionIndices = [0, 1, 3, 5, 6, 8, 9, 11];
        flexionIndices.forEach(idx => {
@@ -577,6 +591,7 @@ export default function App() {
        });
        setCalibrations({ ...calibrations, ranges: newRanges });
        setCalStep(CalibrationStep.FLAT);
+       setCalStepCollecting(false);
     } else if (calStep === CalibrationStep.FLAT) {
        // FLAT 仍用于修正 min（并拢状态可能比自然放松更紧，取较小值）
        snapshot.forEach((val, idx) => {
@@ -590,6 +605,7 @@ export default function App() {
        });
        setCalibrations({ ...calibrations, ranges: newRanges });
        setCalStep(CalibrationStep.SPREAD);
+       setCalStepCollecting(false);
     } else if (calStep === CalibrationStep.SPREAD) {
        spreadIndices.forEach(idx => {
           if (idx < snapshot.length && snapshot[idx] > newRanges[idx].max) {
@@ -604,8 +620,10 @@ export default function App() {
        if (completeCalibrationMode) {
           setCalStep(CalibrationStep.CREEP);
           setCreepSubStep('HOLD_LOAD');
+          setCalStepCollecting(false);
        } else {
           setCalStep(CalibrationStep.IDLE);
+          setCalStepCollecting(false);
        }
     } else if (calStep === CalibrationStep.CREEP) {
        // 三步蠕变标定：HOLD_LOAD → HOLD_RELEASE → CYCLE
@@ -613,12 +631,14 @@ export default function App() {
           creepLoadBufferRef.current = [...buffer];
           setCreepSubStep('HOLD_RELEASE');
           setCalBuffer([]);
+          setCalStepCollecting(false);
           return;
        }
        if (creepSubStep === 'HOLD_RELEASE') {
           creepUnloadBufferRef.current = [...buffer];
           setCreepSubStep('CYCLE');
           setCalBuffer([]);
+          setCalStepCollecting(false);
           return;
        }
        // CYCLE 阶段：使用加载+卸载双缓冲区拟合，循环数据估算滞回
@@ -652,8 +672,10 @@ export default function App() {
           setCalStep(CalibrationStep.IDLE);
           setTrainingMode(true);
           setCompleteCalibrationMode(false);
+          setCalStepCollecting(false);
        } else {
           setCalStep(CalibrationStep.IDLE);
+          setCalStepCollecting(false);
        }
     }
     setCalBuffer([]);
@@ -1070,40 +1092,63 @@ export default function App() {
                         </div>
                      </div>
                    )}
-                   {calStep !== CalibrationStep.CREEP && calBuffer.length < MIN_CAL_FRAMES && (
+                   {calStep !== CalibrationStep.CREEP && calStepCollecting && calBuffer.length < MIN_CAL_FRAMES && (
                      <div className="mb-5 text-center">
                         <p className="text-[10px] text-orange-400/70">请保持姿势稳定，系统正在采样... ({calBuffer.length} / {MIN_CAL_FRAMES})</p>
                      </div>
                    )}
-                   {calStep === CalibrationStep.CREEP && creepSubStep === 'CYCLE' && (
+                   {calStep !== CalibrationStep.CREEP && !calStepCollecting && (
+                     <div className="mb-5 text-center">
+                        <p className="text-[10px] text-cyan-400/70">准备好姿势后点击下方「开始采集」按钮</p>
+                     </div>
+                   )}
+                   {calStep === CalibrationStep.CREEP && creepSubStep === 'CYCLE' && calStepCollecting && (
                      <div className="mb-5 text-center">
                         <p className="text-[10px] text-yellow-400/70">已采样 {calBuffer.length} 帧 — 完成屈伸循环后点击下方按钮</p>
                      </div>
                    )}
+                   {calStep === CalibrationStep.CREEP && creepSubStep === 'CYCLE' && !calStepCollecting && (
+                     <div className="mb-5 text-center">
+                        <p className="text-[10px] text-yellow-400/70">准备好后点击下方「开始采集」按钮，进行屈伸循环</p>
+                     </div>
+                   )}
 
                    <div className="flex gap-3">
-                      <button onClick={() => { setCalStep(CalibrationStep.IDLE); setCreepSubStep('HOLD_LOAD'); setCompleteCalibrationMode(false); }} className="flex-1 px-4 py-2.5 rounded-lg bg-gray-800 text-gray-300 text-sm border border-gray-700 hover:bg-gray-700/50 transition-colors">取消</button>
-                      <button
-                        onClick={nextCalibrationStep}
-                        disabled={(calStep !== CalibrationStep.CREEP && calBuffer.length < MIN_CAL_FRAMES) || (calStep === CalibrationStep.CREEP && (creepSubStep === 'HOLD_LOAD' || creepSubStep === 'HOLD_RELEASE') && calBuffer.length < 30)}
-                        className={`flex-[2] px-6 py-2.5 rounded-lg text-white font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg ${
-                          completeCalibrationMode
-                            ? 'bg-gradient-to-r from-cyan-600 via-yellow-500 to-purple-500 hover:from-cyan-500 hover:via-yellow-400 hover:to-purple-400 shadow-cyan-500/20'
-                            : 'bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 shadow-cyan-500/20'
-                        }`}
-                      >
-                        {calStep === CalibrationStep.CREEP && creepSubStep === 'HOLD_LOAD'
-                          ? '下一步 — 松手保持'
-                          : (calStep === CalibrationStep.CREEP && creepSubStep === 'HOLD_RELEASE'
-                            ? '下一步 — 滞回循环'
-                            : (calStep === CalibrationStep.CREEP && creepSubStep === 'CYCLE'
-                              ? (completeCalibrationMode ? '完成蠕变标定 → 训练' : '完成蠕变标定')
-                              : (calStep === CalibrationStep.SPREAD && completeCalibrationMode
-                                ? '完成标定 → 蠕变标定'
-                                : (calStep === CalibrationStep.SPREAD
-                                  ? '完成标定'
-                                  : '下一步'))))}
-                      </button>
+                      <button onClick={() => { setCalStep(CalibrationStep.IDLE); setCreepSubStep('HOLD_LOAD'); setCompleteCalibrationMode(false); setCalStepCollecting(false); }} className="flex-1 px-4 py-2.5 rounded-lg bg-gray-800 text-gray-300 text-sm border border-gray-700 hover:bg-gray-700/50 transition-colors">取消</button>
+                      {!calStepCollecting ? (
+                        <button
+                          onClick={startCalibrationStepCollecting}
+                          className={`flex-[2] px-6 py-2.5 rounded-lg text-white font-bold text-sm transition-all shadow-lg ${
+                            completeCalibrationMode
+                              ? 'bg-gradient-to-r from-green-600 via-emerald-500 to-teal-500 hover:from-green-500 hover:via-emerald-400 hover:to-teal-400 shadow-green-500/20'
+                              : 'bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 shadow-green-500/20'
+                          }`}
+                        >
+                          开始采集
+                        </button>
+                      ) : (
+                        <button
+                          onClick={nextCalibrationStep}
+                          disabled={(calStep !== CalibrationStep.CREEP && calBuffer.length < MIN_CAL_FRAMES) || (calStep === CalibrationStep.CREEP && (creepSubStep === 'HOLD_LOAD' || creepSubStep === 'HOLD_RELEASE') && calBuffer.length < 30)}
+                          className={`flex-[2] px-6 py-2.5 rounded-lg text-white font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg ${
+                            completeCalibrationMode
+                              ? 'bg-gradient-to-r from-cyan-600 via-yellow-500 to-purple-500 hover:from-cyan-500 hover:via-yellow-400 hover:to-purple-400 shadow-cyan-500/20'
+                              : 'bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 shadow-cyan-500/20'
+                          }`}
+                        >
+                          {calStep === CalibrationStep.CREEP && creepSubStep === 'HOLD_LOAD'
+                            ? '下一步 — 松手保持'
+                            : (calStep === CalibrationStep.CREEP && creepSubStep === 'HOLD_RELEASE'
+                              ? '下一步 — 滞回循环'
+                              : (calStep === CalibrationStep.CREEP && creepSubStep === 'CYCLE'
+                                ? (completeCalibrationMode ? '完成蠕变标定 → 训练' : '完成蠕变标定')
+                                : (calStep === CalibrationStep.SPREAD && completeCalibrationMode
+                                  ? '完成标定 → 蠕变标定'
+                                  : (calStep === CalibrationStep.SPREAD
+                                    ? '完成标定'
+                                    : '下一步'))))}
+                        </button>
+                      )}
                    </div>
                 </div>
              </div>
