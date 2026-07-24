@@ -702,10 +702,12 @@ export default function App() {
       autoAdvanceRef.current = true;
       nextCalibrationStep();
     }
-    if (!calStepCollecting) {
-      autoAdvanceRef.current = false;
-    }
-  }, [calBuffer.length, calStepCollecting, completeCalibrationMode, calStep, MIN_CAL_FRAMES]);
+  }, [calBuffer.length, calStepCollecting, completeCalibrationMode, calStep, MIN_CAL_FRAMES, nextCalibrationStep]);
+
+  // 切换标定步骤或停止采集时，重置自动跳转标记
+  useEffect(() => {
+    autoAdvanceRef.current = false;
+  }, [calStep, calStepCollecting]);
 
   const updateManual = (idx: number, val: number) => {
     setManualData(prev => {
