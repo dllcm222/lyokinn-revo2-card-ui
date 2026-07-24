@@ -6,6 +6,7 @@ export interface SensorReadings {
   normalized: number[]; // The 12 mapped values (0.0 - 1.0)
   derived: {            // Calculated additional degrees of freedom
     thumbOpposition: number;
+    thumbAbduction: number;
     indexDIP: number;
     middleDIP: number;
     ringDIP: number;

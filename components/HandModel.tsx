@@ -79,18 +79,31 @@ export const HandModel: React.FC<HandModelProps> = ({ data, calibration, side, p
       const ipVal = clamp(D[SENSOR_MAP.THUMB_IP], 0, 1);
       const cmcTuck = clamp(D[SENSOR_MAP.THUMB_MCP], 0, 1);
       const mcpVal = (ipVal * 0.4) + (cmcTuck * 0.6);
-      const spreadVal = clamp(D[SENSOR_MAP.THUMB_SPREAD], 0, 1);
+      const abduction = clamp(derived.thumbAbduction ?? 0, 0, 1);
       
-      // CMC (腕掌关节): 控制侧摆跨心与向外伸展
-      // Lift (Local X - 抬起): 微正偏置以使拇指与四指在同一平伸平面；内扣时稍微抬高防穿模
-      let targetX = 0.1 + (cmcTuck * 0.4);
+      // CMC (腕掌关节): 锥形运动 — 屈曲与外展两个正交自由度组合
+      // 屈曲 (cmcTuck): 拇指在掌平面内扫掠跨越掌心（对臥）
+      // 外展 (abduction): 拇指抬起远离掌心平面（径向展开）
+      // 两者正交组合，使拇指尖端在锥形范围内摆动
 
-      // Twist (Local Y - 扭转): 调整初始扭转使指腹与手掌同一方向，cmcTuck 增加向内旋
-      let targetY = -0.05 + (cmcTuck * 1.0) + (spreadVal * 0.1);
-      
-      // Sweep (Local Z - 扫略): spreadVal 使拇指在同一平面向外伸展; cmcTuck 使指尖跨越掌心
-      // 基准偏深负值使得拇指更加竖直贴合手掌边缘，同时增大cmcTuck时的内扣摆幅
-      let targetZ = -0.25 + (cmcTuck * 2.0) - (spreadVal * 0.9);
+      // 基准静止位置
+      const baseX = 0.1;   // 微抬，与四指同平面
+      const baseY = -0.05; // 初始扭转，指腹朝掌心
+      const baseZ = -0.25; // 基准偏深，拇指贴近手掌边缘
+
+      // 屈曲分量 (cmcTuck) → 主要驱动 Z 轴扫掠 + Y 轴对臥扭转
+      const flexZ = cmcTuck * 1.8;   // 扫掠跨越掌心
+      const flexY = cmcTuck * 0.9;   // 对臥扭转（指腹转向掌心）
+      const flexX = cmcTuck * 0.15;  // 屈曲时微抬防穿模
+
+      // 外展分量 (abduction) → 主要驱动 X 轴抬起 + Z 轴向外伸展
+      const abdX = abduction * 0.7;    // 抬起远离掌心（锥形张合）
+      const abdZ = -abduction * 0.5;   // 向外伸展（远离掌心方向）
+      const abdY = abduction * 0.2;    // 外展时微旋使指腹朝外
+
+      let targetX = baseX + flexX + abdX;
+      let targetY = baseY + flexY + abdY;
+      let targetZ = baseZ + flexZ + abdZ;
 
       // MCP (掌指关节)
       let targetMcpZ = 0.0; 
