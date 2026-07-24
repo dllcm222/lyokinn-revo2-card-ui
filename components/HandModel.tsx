@@ -71,7 +71,11 @@ export const HandModel: React.FC<HandModelProps> = ({ data, calibration, side, p
     
     // --- THUMB CMC ---
     if (thumbCMCRef.current && thumbMCPRef.current && thumbIPRef.current) {
+<<<<<<< HEAD
 
+=======
+      
+>>>>>>> feature/quick-calib-continuous-minmax
       // 根据最新要求：
       // 1号传感器 (THUMB_IP, index 0) 对应指间关节 (IP)
       // 2号传感器 (THUMB_MCP, index 1) 对应腕掌关节内扣程度 (CMC)
@@ -80,22 +84,36 @@ export const HandModel: React.FC<HandModelProps> = ({ data, calibration, side, p
       const cmcTuck = clamp(D[SENSOR_MAP.THUMB_MCP], 0, 1);
       const mcpVal = (ipVal * 0.4) + (cmcTuck * 0.6);
       const spreadVal = clamp(D[SENSOR_MAP.THUMB_SPREAD], 0, 1);
+<<<<<<< HEAD
 
+=======
+      
+>>>>>>> feature/quick-calib-continuous-minmax
       // CMC (腕掌关节): 控制侧摆跨心与向外伸展
       // Lift (Local X - 抬起): 微正偏置以使拇指与四指在同一平伸平面；内扣时稍微抬高防穿模
       let targetX = 0.1 + (cmcTuck * 0.4);
 
       // Twist (Local Y - 扭转): 调整初始扭转使指腹与手掌同一方向，cmcTuck 增加向内旋
       let targetY = -0.05 + (cmcTuck * 1.0) + (spreadVal * 0.1);
+<<<<<<< HEAD
 
+=======
+      
+>>>>>>> feature/quick-calib-continuous-minmax
       // Sweep (Local Z - 扫略): spreadVal 使拇指在同一平面向外伸展; cmcTuck 使指尖跨越掌心
       // 基准偏深负值使得拇指更加竖直贴合手掌边缘，同时增大cmcTuck时的内扣摆幅
       let targetZ = -0.25 + (cmcTuck * 2.0) - (spreadVal * 0.9);
 
       // MCP (掌指关节)
+<<<<<<< HEAD
       let targetMcpZ = 0.0;
       let targetMcpX = -mcpVal * 1.2;
 
+=======
+      let targetMcpZ = 0.0; 
+      let targetMcpX = -mcpVal * 1.2;
+      
+>>>>>>> feature/quick-calib-continuous-minmax
       // IP (指间关节)
       let targetIpZ = 0.0;
       let targetIpX = -ipVal * 1.4;
@@ -105,17 +123,28 @@ export const HandModel: React.FC<HandModelProps> = ({ data, calibration, side, p
         const tp = calibration.thumbTuck;
         const currentRaw = data.raw;
         const tIdx = [SENSOR_MAP.THUMB_IP, SENSOR_MAP.THUMB_MCP, SENSOR_MAP.THUMB_SPREAD];
+<<<<<<< HEAD
 
         const dist = Math.sqrt(tIdx.reduce((acc, i) => acc + Math.pow(currentRaw[i] - (tp[i] || 0), 2), 0));
 
         if (dist < 400) {
+=======
+        
+        const dist = Math.sqrt(tIdx.reduce((acc, i) => acc + Math.pow(currentRaw[i] - (tp[i] || 0), 2), 0));
+        
+        if (dist < 400) { 
+>>>>>>> feature/quick-calib-continuous-minmax
           const snap = 1.0 - (dist / 400);
           // 贴紧掌心时的角度：指腹贴掌心
           const tuckT = { x: -0.2, y: 0.5, z: 1.5 };
           targetX = MathUtils.lerp(targetX, tuckT.x, snap);
           targetY = MathUtils.lerp(targetY, tuckT.y, snap);
           targetZ = MathUtils.lerp(targetZ, tuckT.z, snap);
+<<<<<<< HEAD
 
+=======
+          
+>>>>>>> feature/quick-calib-continuous-minmax
           targetMcpZ = MathUtils.lerp(targetMcpZ, 0.0, snap);
           targetMcpX = MathUtils.lerp(targetMcpX, -0.4, snap);
           targetIpZ = MathUtils.lerp(targetIpZ, 0.0, snap);
@@ -130,7 +159,11 @@ export const HandModel: React.FC<HandModelProps> = ({ data, calibration, side, p
       // 应用指间关节的旋转，主要在Z轴体现收拢，副在-X轴体现向内贴紧
       thumbMCPRef.current.rotation.z = MathUtils.lerp(thumbMCPRef.current.rotation.z, targetMcpZ, alpha);
       thumbMCPRef.current.rotation.x = MathUtils.lerp(thumbMCPRef.current.rotation.x, targetMcpX, alpha);
+<<<<<<< HEAD
 
+=======
+      
+>>>>>>> feature/quick-calib-continuous-minmax
       thumbIPRef.current.rotation.z = MathUtils.lerp(thumbIPRef.current.rotation.z, targetIpZ, alpha);
       thumbIPRef.current.rotation.x = MathUtils.lerp(thumbIPRef.current.rotation.x, targetIpX, alpha);
     }

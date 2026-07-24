@@ -112,6 +112,15 @@ export default function App() {
   const creepFileInputRef = useRef<HTMLInputElement>(null);
   const calFileInputRef = useRef<HTMLInputElement>(null);
 
+<<<<<<< HEAD
+=======
+  // 快速标定模式：持续检测 min/max，每个动作 8 秒后自动跳转
+  const QUICK_CAL_STEP_DURATION_MS = 8000;
+  const quickCalibMinMaxRef = useRef<{ min: number[]; max: number[] } | null>(null);
+  const quickCalibStepStartRef = useRef<number>(0);
+  const [quickCalibRemainingSec, setQuickCalibRemainingSec] = useState(0);
+
+>>>>>>> feature/quick-calib-continuous-minmax
   const [isRecording, setIsRecording] = useState(false);
   const recordingBufferRef = useRef<number[][]>([]);
   const serialDataCallbackRef = useRef<((data: number[]) => void) | null>(null);
@@ -255,9 +264,24 @@ export default function App() {
   const handleSerialData = useCallback((data: number[]) => {
     const now = Date.now();
     if (!(window as any).lastSerialUpdate) (window as any).lastSerialUpdate = 0;
+<<<<<<< HEAD
     
     if (calStep !== CalibrationStep.IDLE && calStepCollecting) {
       setCalBuffer(prev => [...prev, data]);
+=======
+
+    if (calStep !== CalibrationStep.IDLE && calStepCollecting) {
+      setCalBuffer(prev => [...prev, data]);
+      // 快速标定模式：持续更新每个传感器的 min/max
+      if (!completeCalibrationMode && quickCalibMinMaxRef.current) {
+        const tracker = quickCalibMinMaxRef.current;
+        for (let i = 0; i < TOTAL_SENSORS; i++) {
+          const v = data[i];
+          if (v < tracker.min[i]) tracker.min[i] = v;
+          if (v > tracker.max[i]) tracker.max[i] = v;
+        }
+      }
+>>>>>>> feature/quick-calib-continuous-minmax
     }
 
     if (now - (window as any).lastSerialUpdate < 25) {
@@ -278,7 +302,11 @@ export default function App() {
 
     const result = processWithCARD(data, false);
     setCardResult(result);
+<<<<<<< HEAD
   }, [calStep, calStepCollecting, processWithCARD, isRecording]);
+=======
+  }, [calStep, calStepCollecting, completeCalibrationMode, processWithCARD, isRecording]);
+>>>>>>> feature/quick-calib-continuous-minmax
 
   useEffect(() => {
     serialDataCallbackRef.current = handleSerialData;
@@ -444,6 +472,22 @@ export default function App() {
     setCalBuffer([]);
     setCalStepCollecting(false);
     setCompleteCalibrationMode(completeMode);
+<<<<<<< HEAD
+=======
+    autoAdvanceRef.current = false;
+    if (!completeMode) {
+      // 快速标定：初始化持续 min/max 跟踪器，并自动开始采集
+      quickCalibMinMaxRef.current = {
+        min: Array(TOTAL_SENSORS).fill(Infinity),
+        max: Array(TOTAL_SENSORS).fill(-Infinity),
+      };
+      quickCalibStepStartRef.current = Date.now();
+      setQuickCalibRemainingSec(Math.ceil(QUICK_CAL_STEP_DURATION_MS / 1000));
+      setCalStepCollecting(true);
+    } else {
+      quickCalibMinMaxRef.current = null;
+    }
+>>>>>>> feature/quick-calib-continuous-minmax
   };
 
   const startCalibrationStepCollecting = () => {
@@ -577,17 +621,75 @@ export default function App() {
   };
 
   const nextCalibrationStep = () => {
+<<<<<<< HEAD
+=======
+    // 快速标定模式（非蠕变步骤）：持续检测 min/max，每个动作仅引导用户，
+    // 到达 SPREAD 末步时一次性应用累积的 min/max
+    if (!completeCalibrationMode && calStep !== CalibrationStep.CREEP) {
+      if (calStep === CalibrationStep.RELAX) {
+        setCalStep(CalibrationStep.FIST);
+        quickCalibStepStartRef.current = Date.now();
+        autoAdvanceRef.current = false;
+        setCalBuffer([]);
+        return;
+      }
+      if (calStep === CalibrationStep.FIST) {
+        setCalStep(CalibrationStep.FLAT);
+        quickCalibStepStartRef.current = Date.now();
+        autoAdvanceRef.current = false;
+        setCalBuffer([]);
+        return;
+      }
+      if (calStep === CalibrationStep.FLAT) {
+        setCalStep(CalibrationStep.SPREAD);
+        quickCalibStepStartRef.current = Date.now();
+        autoAdvanceRef.current = false;
+        setCalBuffer([]);
+        return;
+      }
+      if (calStep === CalibrationStep.SPREAD) {
+        // 应用整个流程中累积的 min/max
+        const tracker = quickCalibMinMaxRef.current;
+        if (tracker) {
+          const newRanges = calibrations.ranges.map((r, i) => ({
+            ...r,
+            min: Number.isFinite(tracker.min[i]) ? tracker.min[i] : r.min,
+            max: Number.isFinite(tracker.max[i]) ? tracker.max[i] : r.max,
+          }));
+          setCalibrations({ ...calibrations, ranges: newRanges, isCalibrated: true });
+          // E. 重新标定后同步 MLP baseline
+          if (mlpBaseline.length === 12) {
+            setMlpBaseline(newRanges.map(r => r.min));
+          }
+        }
+        setCalStep(CalibrationStep.IDLE);
+        setCalStepCollecting(false);
+        quickCalibMinMaxRef.current = null;
+        setCalBuffer([]);
+        return;
+      }
+    }
+
+>>>>>>> feature/quick-calib-continuous-minmax
     const buffer = calBuffer;
     // A. 稳定帧过滤：剔除前20%帧，只取稳定部分
     const stableStart = Math.floor(buffer.length * 0.2);
     const stableBuffer = buffer.slice(stableStart);
+<<<<<<< HEAD
     const snapshot = stableBuffer.length > 0 
+=======
+    const snapshot = stableBuffer.length > 0
+>>>>>>> feature/quick-calib-continuous-minmax
       ? stableBuffer[0].map((_, colIndex) => stableBuffer.reduce((acc, row) => acc + row[colIndex], 0) / stableBuffer.length)
       : rawData;
 
     let newRanges = calibrations.ranges.map(r => ({ ...r }));
     const spreadIndices = [2, 4, 7, 10];
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> feature/quick-calib-continuous-minmax
     if (calStep === CalibrationStep.RELAX) {
        // F. 自然放松态：取所有传感器的 min（最松弛状态）
        snapshot.forEach((val, idx) => {
@@ -693,11 +795,16 @@ export default function App() {
     setCalBuffer([]);
   };
 
+<<<<<<< HEAD
   // 快速标定模式：采集达到目标帧数后自动跳转下一步
+=======
+  // 快速标定模式：每个动作持续 8 秒，期间持续检测 min/max，到时自动跳转下一步
+>>>>>>> feature/quick-calib-continuous-minmax
   const autoAdvanceRef = useRef(false);
   useEffect(() => {
     if (!calStepCollecting || completeCalibrationMode) return;
     if (calStep === CalibrationStep.IDLE || calStep === CalibrationStep.CREEP) return;
+<<<<<<< HEAD
     if (calBuffer.length >= MIN_CAL_FRAMES && !autoAdvanceRef.current) {
       autoAdvanceRef.current = true;
       nextCalibrationStep();
@@ -708,6 +815,25 @@ export default function App() {
   useEffect(() => {
     autoAdvanceRef.current = false;
   }, [calStep, calStepCollecting]);
+=======
+
+    const tick = () => {
+      const elapsed = Date.now() - quickCalibStepStartRef.current;
+      const remainingMs = Math.max(0, QUICK_CAL_STEP_DURATION_MS - elapsed);
+      setQuickCalibRemainingSec(Math.ceil(remainingMs / 1000));
+      if (elapsed >= QUICK_CAL_STEP_DURATION_MS && !autoAdvanceRef.current) {
+        autoAdvanceRef.current = true;
+        clearInterval(interval);
+        nextCalibrationStep();
+      }
+    };
+
+    const interval = setInterval(tick, 200);
+    tick();
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calStep, calStepCollecting, completeCalibrationMode, QUICK_CAL_STEP_DURATION_MS]);
+>>>>>>> feature/quick-calib-continuous-minmax
 
   const updateManual = (idx: number, val: number) => {
     setManualData(prev => {
@@ -1048,7 +1174,11 @@ export default function App() {
                             );
                           })}
                         </div>
+<<<<<<< HEAD
                         <p className="text-[7px] text-gray-500 text-center mt-2">快速标定仅需 4 步，完成后即可使用</p>
+=======
+                        <p className="text-[7px] text-gray-500 text-center mt-2">快速标定仅需 4 步，每步 8 秒，完成后即可使用</p>
+>>>>>>> feature/quick-calib-continuous-minmax
                      </div>
                    )}
 
@@ -1079,10 +1209,25 @@ export default function App() {
                            {calStep === CalibrationStep.CREEP && creepSubStep === 'CYCLE' && '蠕变标定 — 滞回循环'}
                          </h3>
                          <p className="text-xs text-gray-400 leading-relaxed">
+<<<<<<< HEAD
                            {calStep === CalibrationStep.RELAX && '自然放松手部，不要刻意伸直或弯曲，让手处于最舒适的状态。系统将记录传感器的零位基线。'}
                            {calStep === CalibrationStep.FIST && '用力握紧拳头，将大拇指搭在食指和中指的远端指间关节上方。保持姿势稳定。'}
                            {calStep === CalibrationStep.FLAT && '伸直并并拢五指。请务必使大拇指与手掌保持在同一平面，并紧贴食指侧面（不要前伸或内扣）。'}
                            {calStep === CalibrationStep.SPREAD && '保持手掌平伸在同一平面，同时尽力向外张开五指，包括大拇指虎口及四指间的间隙。'}
+=======
+                           {calStep === CalibrationStep.RELAX && (completeCalibrationMode
+                             ? '自然放松手部，不要刻意伸直或弯曲，让手处于最舒适的状态。系统将记录传感器的零位基线。'
+                             : '自然放松手部，不要刻意伸直或弯曲，让手处于最舒适的状态。请保持该动作约 8 秒，系统将持续检测 min/max，到时自动进入下一步。')}
+                           {calStep === CalibrationStep.FIST && (completeCalibrationMode
+                             ? '用力握紧拳头，将大拇指搭在食指和中指的远端指间关节上方。保持姿势稳定。'
+                             : '用力握紧拳头，将大拇指搭在食指和中指的远端指间关节上方。请保持该动作约 8 秒，系统将持续检测 min/max，到时自动进入下一步。')}
+                           {calStep === CalibrationStep.FLAT && (completeCalibrationMode
+                             ? '伸直并并拢五指。请务必使大拇指与手掌保持在同一平面，并紧贴食指侧面（不要前伸或内扣）。'
+                             : '伸直并并拢五指。请务必使大拇指与手掌保持在同一平面，并紧贴食指侧面（不要前伸或内扣）。请保持该动作约 8 秒，系统将持续检测 min/max，到时自动进入下一步。')}
+                           {calStep === CalibrationStep.SPREAD && (completeCalibrationMode
+                             ? '保持手掌平伸在同一平面，同时尽力向外张开五指，包括大拇指虎口及四指间的间隙。'
+                             : '保持手掌平伸在同一平面，同时尽力向外张开五指，包括大拇指虎口及四指间的间隙。请保持该动作约 8 秒，系统将持续检测 min/max，到时自动完成标定。')}
+>>>>>>> feature/quick-calib-continuous-minmax
                            {calStep === CalibrationStep.CREEP && creepSubStep === 'HOLD_LOAD' && '保持中等握力（约 50% 弯曲）完全静止约 10 秒，系统正在记录传感器加载后的粘弹性蠕变上升曲线。请勿抖动。'}
                            {calStep === CalibrationStep.CREEP && creepSubStep === 'HOLD_RELEASE' && '快速松开至完全放松状态，然后保持静止约 10 秒，系统正在记录卸载后的蠕变恢复下降曲线。'}
                            {calStep === CalibrationStep.CREEP && creepSubStep === 'CYCLE' && '在 3 秒内快速握拳-松开 3 次，用于标定滞回特性。完成后点击下方按钮。'}
@@ -1120,14 +1265,38 @@ export default function App() {
                         </div>
                      </div>
                    )}
+<<<<<<< HEAD
                    {calStep !== CalibrationStep.CREEP && calStepCollecting && (
+=======
+                   {calStep !== CalibrationStep.CREEP && calStepCollecting && !completeCalibrationMode && (
+                     <div className="mb-5">
+                        <div className="w-full bg-gray-800 h-2 rounded-full overflow-hidden border border-cyan-900/30">
+                           <div
+                              className="h-full bg-gradient-to-r from-cyan-600 to-cyan-400 transition-all duration-200"
+                              style={{ width: `${Math.min(100, Math.max(0, ((QUICK_CAL_STEP_DURATION_MS / 1000 - quickCalibRemainingSec) / (QUICK_CAL_STEP_DURATION_MS / 1000)) * 100))}%` }}
+                           />
+                        </div>
+                        <div className="flex justify-between mt-2">
+                           <p className="text-[10px] text-cyan-400/70">请保持当前动作，系统持续检测 min/max...</p>
+                           <p className="text-[10px] text-cyan-300 font-mono">{quickCalibRemainingSec}s</p>
+                        </div>
+                     </div>
+                   )}
+                   {calStep !== CalibrationStep.CREEP && calStepCollecting && completeCalibrationMode && (
+>>>>>>> feature/quick-calib-continuous-minmax
                      <div className="mb-5 text-center">
                         <p className="text-[10px] text-orange-400/70">请保持姿势稳定，系统正在采样... ({calBuffer.length} / {MIN_CAL_FRAMES})</p>
                      </div>
                    )}
+<<<<<<< HEAD
                    {calStep !== CalibrationStep.CREEP && !calStepCollecting && (
                      <div className="mb-5 text-center">
                         <p className="text-[10px] text-cyan-400/70">{completeCalibrationMode ? '准备好姿势后点击下方「开始采集」按钮' : '准备好姿势后点击下方「开始采集」按钮，采集满 60 帧将自动进入下一步'}</p>
+=======
+                   {calStep !== CalibrationStep.CREEP && !calStepCollecting && completeCalibrationMode && (
+                     <div className="mb-5 text-center">
+                        <p className="text-[10px] text-cyan-400/70">准备好姿势后点击下方「开始采集」按钮</p>
+>>>>>>> feature/quick-calib-continuous-minmax
                      </div>
                    )}
                    {calStep === CalibrationStep.CREEP && creepSubStep === 'CYCLE' && calStepCollecting && (
@@ -1142,8 +1311,18 @@ export default function App() {
                    )}
 
                    <div className="flex gap-3">
+<<<<<<< HEAD
                       <button onClick={() => { setCalStep(CalibrationStep.IDLE); setCreepSubStep('HOLD_LOAD'); setCompleteCalibrationMode(false); setCalStepCollecting(false); }} className="flex-1 px-4 py-2.5 rounded-lg bg-gray-800 text-gray-300 text-sm border border-gray-700 hover:bg-gray-700/50 transition-colors">取消</button>
                       {!calStepCollecting ? (
+=======
+                      <button onClick={() => { setCalStep(CalibrationStep.IDLE); setCreepSubStep('HOLD_LOAD'); setCompleteCalibrationMode(false); setCalStepCollecting(false); quickCalibMinMaxRef.current = null; autoAdvanceRef.current = false; }} className="flex-1 px-4 py-2.5 rounded-lg bg-gray-800 text-gray-300 text-sm border border-gray-700 hover:bg-gray-700/50 transition-colors">取消</button>
+                      {!completeCalibrationMode && calStep !== CalibrationStep.CREEP ? (
+                        <div className="flex-[2] px-6 py-2.5 rounded-lg bg-cyan-600/10 border border-cyan-600/20 text-cyan-300 font-bold text-sm flex items-center justify-center gap-2">
+                           <RefreshCw size={12} className="animate-spin-slow" />
+                           自动检测中 · {quickCalibRemainingSec}s
+                        </div>
+                      ) : !calStepCollecting ? (
+>>>>>>> feature/quick-calib-continuous-minmax
                         <button
                           onClick={startCalibrationStepCollecting}
                           className={`flex-[2] px-6 py-2.5 rounded-lg text-white font-bold text-sm transition-all shadow-lg ${
@@ -1157,7 +1336,11 @@ export default function App() {
                       ) : (
                         <button
                           onClick={nextCalibrationStep}
+<<<<<<< HEAD
                           disabled={(calStep !== CalibrationStep.CREEP && calBuffer.length < MIN_CAL_FRAMES) || (calStep === CalibrationStep.CREEP && (creepSubStep === 'HOLD_LOAD' || creepSubStep === 'HOLD_RELEASE') && calBuffer.length < 30) || (!completeCalibrationMode && calStep !== CalibrationStep.CREEP)}
+=======
+                          disabled={(calStep !== CalibrationStep.CREEP && calBuffer.length < MIN_CAL_FRAMES) || (calStep === CalibrationStep.CREEP && (creepSubStep === 'HOLD_LOAD' || creepSubStep === 'HOLD_RELEASE') && calBuffer.length < 30)}
+>>>>>>> feature/quick-calib-continuous-minmax
                           className={`flex-[2] px-6 py-2.5 rounded-lg text-white font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg ${
                             completeCalibrationMode
                               ? 'bg-gradient-to-r from-cyan-600 via-yellow-500 to-purple-500 hover:from-cyan-500 hover:via-yellow-400 hover:to-purple-400 shadow-cyan-500/20'
@@ -1170,6 +1353,7 @@ export default function App() {
                               ? '下一步 — 滞回循环'
                               : (calStep === CalibrationStep.CREEP && creepSubStep === 'CYCLE'
                                 ? (completeCalibrationMode ? '完成蠕变标定 → 训练' : '完成蠕变标定')
+<<<<<<< HEAD
                                 : (!completeCalibrationMode
                                   ? `自动采集中 ${calBuffer.length}/${MIN_CAL_FRAMES}`
                                   : (calStep === CalibrationStep.SPREAD && completeCalibrationMode
@@ -1177,6 +1361,13 @@ export default function App() {
                                     : (calStep === CalibrationStep.SPREAD
                                       ? '完成标定'
                                       : '下一步')))))}
+=======
+                                : (calStep === CalibrationStep.SPREAD && completeCalibrationMode
+                                  ? '完成标定 → 蠕变标定'
+                                  : (calStep === CalibrationStep.SPREAD
+                                    ? '完成标定'
+                                    : '下一步'))))}
+>>>>>>> feature/quick-calib-continuous-minmax
                         </button>
                       )}
                    </div>
