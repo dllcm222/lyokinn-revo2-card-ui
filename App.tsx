@@ -265,7 +265,7 @@ export default function App() {
 
     const result = processWithCARD(data, false);
     setCardResult(result);
-  }, [calStep, processWithCARD, isRecording]);
+  }, [calStep, calStepCollecting, processWithCARD, isRecording]);
 
   useEffect(() => {
     serialDataCallbackRef.current = handleSerialData;
