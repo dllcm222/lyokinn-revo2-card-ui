@@ -606,7 +606,7 @@ export default function App() {
        setCalStepCollecting(false);
     } else if (calStep === CalibrationStep.SPREAD) {
        spreadIndices.forEach(idx => {
-          if (idx < snapshot.length && snapshot[idx] > newRanges[idx].max) {
+          if (idx < snapshot.length) {
              newRanges[idx].max = snapshot[idx];
           }
        });
