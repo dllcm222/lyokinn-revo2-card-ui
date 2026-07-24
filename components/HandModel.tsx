@@ -91,16 +91,17 @@ export const HandModel: React.FC<HandModelProps> = ({ data, calibration, side, p
       const baseY = -0.05; // 初始扭转，指腹朝掌心
       const baseZ = -0.25; // 基准偏深，拇指贴近手掌边缘
 
-      // 屈曲分量 (cmcTuck) → 主要驱动 Z 轴扫掠 + Y 轴对臥扭转（pronation）
-      const flexZ = cmcTuck * 1.8;   // 扫掠跨越掌心
-      const flexY = cmcTuck * 1.6;   // 对臥扭转：绕自身纵轴旋转让指腹转向掌心（pronation）
-      const flexX = cmcTuck * 0.15;  // 屈曲时微抬防穿模
+      // 屈曲分量 (cmcTuck) → 主绕 X 轴正向让拇指内扣到掌心 + Y 轴 pronation 扭转
+      // 拇指骨骼沿 +Y 延伸，绕 X 正向使 +Y 朝 +Z（掌心方向）弯曲
+      const flexX = cmcTuck * 1.8;    // 主分量：内扣到掌心
+      const flexY = cmcTuck * 1.4;    // pronation：绕自身纵轴扭转，指腹转向掌心
+      const flexZ = cmcTuck * 0.3;    // 副分量：微扫掠保留对臥感
 
-      // 外展分量 (abduction) → 驱动拇指抬起远离掌心 + 绕自身纵轴扭转
-      // 拇指骨骼沿 +Y 延伸，故绕 Y 旋转即绕自身纵轴扭转（pronation/supination）
-      const abdX = -abduction * 1.8;    // 抬起远离掌心平面（锥形张合主分量，方向已修正）
-      const abdZ = abduction * 0.6;     // 掌平面内向外打开（远离食指方向，副分量）
-      const abdY = abduction * 1.6;     // 绕自身纵轴扭转：外展时指腹朝外（supination）
+      // 外展分量 (abduction) → 绕 X 负向抬起（伸展）+ 绕 Z 轴掌平面内打开 + Y 轴 supination
+      // X 轴与屈曲共用（方向相反=伸展），Z 轴为正交第二自由度，组合形成锥形摆动范围
+      const abdX = -abduction * 1.8;    // 抬起远离掌心（伸展，方向已确认正确）
+      const abdZ = -abduction * 1.0;    // 掌平面内向外打开：与屈曲 X 轴正交，形成锥形第二维
+      const abdY = abduction * 1.4;     // supination：绕自身纵轴扭转，指腹朝外
 
       let targetX = baseX + flexX + abdX;
       let targetY = baseY + flexY + abdY;
