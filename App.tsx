@@ -437,7 +437,7 @@ export default function App() {
   };
 
   // --- Calibration Logic ---
-  const MIN_CAL_FRAMES = 30; // 每步标定至少需要的帧数
+  const MIN_CAL_FRAMES = 60; // 每步标定至少需要的帧数
 
   const startCalibration = (completeMode: boolean = false) => {
     setCalStep(CalibrationStep.RELAX);
@@ -692,6 +692,20 @@ export default function App() {
     }
     setCalBuffer([]);
   };
+
+  // 快速标定模式：采集达到目标帧数后自动跳转下一步
+  const autoAdvanceRef = useRef(false);
+  useEffect(() => {
+    if (!calStepCollecting || completeCalibrationMode) return;
+    if (calStep === CalibrationStep.IDLE || calStep === CalibrationStep.CREEP) return;
+    if (calBuffer.length >= MIN_CAL_FRAMES && !autoAdvanceRef.current) {
+      autoAdvanceRef.current = true;
+      nextCalibrationStep();
+    }
+    if (!calStepCollecting) {
+      autoAdvanceRef.current = false;
+    }
+  }, [calBuffer.length, calStepCollecting, completeCalibrationMode, calStep, MIN_CAL_FRAMES]);
 
   const updateManual = (idx: number, val: number) => {
     setManualData(prev => {
@@ -1104,14 +1118,14 @@ export default function App() {
                         </div>
                      </div>
                    )}
-                   {calStep !== CalibrationStep.CREEP && calStepCollecting && calBuffer.length < MIN_CAL_FRAMES && (
+                   {calStep !== CalibrationStep.CREEP && calStepCollecting && (
                      <div className="mb-5 text-center">
                         <p className="text-[10px] text-orange-400/70">请保持姿势稳定，系统正在采样... ({calBuffer.length} / {MIN_CAL_FRAMES})</p>
                      </div>
                    )}
                    {calStep !== CalibrationStep.CREEP && !calStepCollecting && (
                      <div className="mb-5 text-center">
-                        <p className="text-[10px] text-cyan-400/70">准备好姿势后点击下方「开始采集」按钮</p>
+                        <p className="text-[10px] text-cyan-400/70">{completeCalibrationMode ? '准备好姿势后点击下方「开始采集」按钮' : '准备好姿势后点击下方「开始采集」按钮，采集满 60 帧将自动进入下一步'}</p>
                      </div>
                    )}
                    {calStep === CalibrationStep.CREEP && creepSubStep === 'CYCLE' && calStepCollecting && (
@@ -1141,7 +1155,7 @@ export default function App() {
                       ) : (
                         <button
                           onClick={nextCalibrationStep}
-                          disabled={(calStep !== CalibrationStep.CREEP && calBuffer.length < MIN_CAL_FRAMES) || (calStep === CalibrationStep.CREEP && (creepSubStep === 'HOLD_LOAD' || creepSubStep === 'HOLD_RELEASE') && calBuffer.length < 30)}
+                          disabled={(calStep !== CalibrationStep.CREEP && calBuffer.length < MIN_CAL_FRAMES) || (calStep === CalibrationStep.CREEP && (creepSubStep === 'HOLD_LOAD' || creepSubStep === 'HOLD_RELEASE') && calBuffer.length < 30) || (!completeCalibrationMode && calStep !== CalibrationStep.CREEP)}
                           className={`flex-[2] px-6 py-2.5 rounded-lg text-white font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg ${
                             completeCalibrationMode
                               ? 'bg-gradient-to-r from-cyan-600 via-yellow-500 to-purple-500 hover:from-cyan-500 hover:via-yellow-400 hover:to-purple-400 shadow-cyan-500/20'
@@ -1154,11 +1168,13 @@ export default function App() {
                               ? '下一步 — 滞回循环'
                               : (calStep === CalibrationStep.CREEP && creepSubStep === 'CYCLE'
                                 ? (completeCalibrationMode ? '完成蠕变标定 → 训练' : '完成蠕变标定')
-                                : (calStep === CalibrationStep.SPREAD && completeCalibrationMode
-                                  ? '完成标定 → 蠕变标定'
-                                  : (calStep === CalibrationStep.SPREAD
-                                    ? '完成标定'
-                                    : '下一步'))))}
+                                : (!completeCalibrationMode
+                                  ? `自动采集中 ${calBuffer.length}/${MIN_CAL_FRAMES}`
+                                  : (calStep === CalibrationStep.SPREAD && completeCalibrationMode
+                                    ? '完成标定 → 蠕变标定'
+                                    : (calStep === CalibrationStep.SPREAD
+                                      ? '完成标定'
+                                      : '下一步')))))}
                         </button>
                       )}
                    </div>
