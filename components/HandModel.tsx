@@ -96,10 +96,12 @@ export const HandModel: React.FC<HandModelProps> = ({ data, calibration, side, p
       const flexY = cmcTuck * 0.9;   // 对臥扭转（指腹转向掌心）
       const flexX = cmcTuck * 0.15;  // 屈曲时微抬防穿模
 
-      // 外展分量 (abduction) → 主要驱动 X 轴抬起 + Z 轴向外伸展
-      const abdX = abduction * 0.7;    // 抬起远离掌心（锥形张合）
-      const abdZ = -abduction * 0.5;   // 向外伸展（远离掌心方向）
-      const abdY = abduction * 0.2;    // 外展时微旋使指腹朝外
+      // 外展分量 (abduction) → 主要让拇指绕局部 X 轴负向旋转，
+      // 使拇指骨骼从掌平面（XY 平面）抬起朝向用户（Z 负方向），实现真正的锥形外展
+      // 注意：先前 +X 方向错误地使拇指向掌心后方倾斜（内收），故取反并增大
+      const abdX = -abduction * 1.8;    // 抬起远离掌心平面（朝向用户，锥形张合主分量）
+      const abdZ = -abduction * 0.5;    // 掌平面内向外打开（远离食指方向，副分量）
+      const abdY = abduction * 0.5;     // 外展时微旋使指腹朝外
 
       let targetX = baseX + flexX + abdX;
       let targetY = baseY + flexY + abdY;
