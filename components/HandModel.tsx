@@ -80,33 +80,42 @@ export const HandModel: React.FC<HandModelProps> = ({ data, calibration, side, p
       const cmcTuck = clamp(D[SENSOR_MAP.THUMB_MCP], 0, 1);
       const mcpVal = (ipVal * 0.4) + (cmcTuck * 0.6);
       const abduction = clamp(derived.thumbAbduction ?? 0, 0, 1);
-      
-      // CMC (腕掌关节): 锥形运动 — 屈曲与外展两个正交自由度组合
-      // 屈曲 (cmcTuck): 拇指在掌平面内扫掠跨越掌心（对臥）
-      // 外展 (abduction): 拇指抬起远离掌心平面（径向展开）
-      // 两者正交组合，使拇指尖端在锥形范围内摆动
+      const opposition = clamp(derived.thumbOpposition ?? (1 - abduction), 0, 1);
+
+      // === 拇指腕掌关节 (CMC) — 鞍状关节 3 自由度生物力学模型 ===
+      // 参考文献: Hollister 1992 (J Orthop Res), Halilaj 2013 (J Biomech), Chang 2008 (TBME)
+      //   - 屈伸轴 (FE): 位于大多角骨内 → 局部 X 轴
+      //   - 收展轴 (AA): 位于第1掌骨内 → 局部 Z 轴
+      //   - 旋前/旋后轴 (PS): 绕骨长轴 → 局部 Y 轴
+      //     生理上由肌肉稳定(±3°), 但对掌时显著增大(可达23°, Chang 2008)
+      // 对掌 (opposition) 是复合运动 = 内收 + 屈曲 + 旋前 (百度百科/解剖学)
+      //   → 当 opposition 高时, 三者协同让拇指尖触及掌心及小指
 
       // 基准静止位置
       const baseX = 0.1;   // 微抬，与四指同平面
       const baseY = -0.05; // 初始扭转，指腹朝掌心
       const baseZ = -0.25; // 基准偏深，拇指贴近手掌边缘
 
-      // 对掌分量 (cmcTuck) → 拇指特有的对掌(opposition)复合运动：
-      // 强力 Z 轴扫掠跨越掌心朝向小指 + 适度 X 轴弯曲贴向掌面 + Y 轴旋前让指腹对掌心
-      // 三者协调，使拇指尖能触及掌心及其他指尖（人类拇指的核心功能）
-      const flexZ = cmcTuck * 1.8;    // 主分量：扫掠跨越掌心朝向小指（对掌的关键横向运动）
-      const flexX = cmcTuck * 0.9;    // 副分量：弯曲贴向掌面（+Z 朝向用户/掌面）
-      const flexY = cmcTuck * 1.5;    // 旋前(pronation)：绕自身纵轴扭转，指腹转向掌心
+      // --- DOF 1: 屈伸 (绕 X 轴) ---
+      // 屈曲时 +Y 朝 +Z (掌心方向) → +X 旋转
+      const rotX_flex = cmcTuck * 1.6;       // 屈曲: 弯向掌心
+      const rotX_abd = -abduction * 1.8;     // 外展: 抬起远离掌心 (方向已确认正确)
 
-      // 外展分量 (abduction) → 绕 X 负向抬起（伸展）+ 绕 Z 轴掌平面内打开 + Y 轴 supination
-      // X 轴与屈曲共用（方向相反=伸展），Z 轴为正交第二自由度，组合形成锥形摆动范围
-      const abdX = -abduction * 1.8;    // 抬起远离掌心（伸展，方向已确认正确）
-      const abdZ = -abduction * 1.0;    // 掌平面内向外打开：与屈曲 X 轴正交，形成锥形第二维
-      const abdY = abduction * 1.4;     // supination：绕自身纵轴扭转，指腹朝外
+      // --- DOF 2: 收展 (绕 Z 轴) ---
+      // +Z 旋转使 +Y 朝 -X (掌心方向/小指侧) = 内收; -Z 旋转 = 外展
+      const rotZ_opp = opposition * 1.7;     // 对掌: 扫掠跨越掌心朝小指 (内收方向, 对掌关键横向运动)
+      const rotZ_flex = cmcTuck * 0.3;       // 屈曲时微扫
+      const rotZ_abd = -abduction * 1.0;     // 外展: 掌平面内向外打开
 
-      let targetX = baseX + flexX + abdX;
-      let targetY = baseY + flexY + abdY;
-      let targetZ = baseZ + flexZ + abdZ;
+      // --- DOF 3: 旋前/旋后 (绕 Y 轴, 骨长轴) — 此为先前缺失的自由度 ---
+      // 对掌复合时强力旋前让指腹对掌心; 外展时旋后让指腹朝外
+      const rotY_opp = opposition * 1.8;     // 对掌旋前: 指腹转向掌心 (核心, 使拇指能"贴"掌)
+      const rotY_flex = cmcTuck * 0.6;       // 屈曲时伴随旋前
+      const rotY_abd = abduction * 1.4;      // 外展旋后: 指腹朝外
+
+      let targetX = baseX + rotX_flex + rotX_abd;
+      let targetY = baseY + rotY_opp + rotY_flex + rotY_abd;
+      let targetZ = baseZ + rotZ_opp + rotZ_flex + rotZ_abd;
 
       // MCP (掌指关节)
       let targetMcpZ = 0.0; 
