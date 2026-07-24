@@ -66,7 +66,6 @@ export default function App() {
   const [manualMode, setManualMode] = useState(false);
   const [manualData, setManualData] = useState<number[]>(Array(TOTAL_SENSORS).fill(2048));
   const [manualOpposition, setManualOpposition] = useState(0);
-  const [manualAbduction, setManualAbduction] = useState(0);
   const [manualDIP, setManualDIP] = useState({ index: 0, middle: 0, ring: 0, pinky: 0 });
 
   // Calibration State
@@ -88,7 +87,6 @@ export default function App() {
     normalized: Array(TOTAL_SENSORS).fill(0),
     derived: {
       thumbOpposition: 0,
-      thumbAbduction: 0,
       indexDIP: 0,
       middleDIP: 0,
       ringDIP: 0,
@@ -230,7 +228,6 @@ export default function App() {
       normalized,
       derived: {
         thumbOpposition: manual ? manualOpposition : Math.max(0, Math.min(1, 1 - normalized[SENSOR_MAP.THUMB_SPREAD])),
-        thumbAbduction: manual ? manualAbduction : Math.max(0, Math.min(1, normalized[SENSOR_MAP.THUMB_SPREAD])),
         indexDIP: manual ? manualDIP.index : calcDIP(SENSOR_MAP.INDEX_PIP),
         middleDIP: manual ? manualDIP.middle : calcDIP(SENSOR_MAP.MIDDLE_PIP),
         ringDIP: manual ? manualDIP.ring : calcDIP(SENSOR_MAP.RING_PIP),
@@ -244,7 +241,7 @@ export default function App() {
         middleWeightedMCP: (normalized[SENSOR_MAP.MIDDLE_MCP] * 0.7 + normalized[SENSOR_MAP.MIDDLE_PIP] * 0.3),
       },
     };
-  }, [manualData, calibrations, creepEnabled, decouplerEnabled, smoothingAlpha, manualOpposition, manualAbduction, manualDIP, mlpBaseline, mlpMaxDelta]);
+  }, [manualData, calibrations, creepEnabled, decouplerEnabled, smoothingAlpha, manualOpposition, manualDIP, mlpBaseline, mlpMaxDelta]);
 
   const processedData = useMemo((): SensorReadings => {
     return {
@@ -297,7 +294,7 @@ export default function App() {
       const result = processWithCARD(manualData, true);
       setCardResult(result);
     }
-  }, [manualData, manualMode, manualOpposition, manualAbduction, manualDIP, processWithCARD]);
+  }, [manualData, manualMode, manualOpposition, manualDIP, processWithCARD]);
 
   // --- Reset CARD State on Mode Change ---
   useEffect(() => {
@@ -1513,7 +1510,6 @@ export default function App() {
                     {renderWeightedDisplay("加权掌指关节 (Calc MCP)", cardResult.derived.thumbWeightedMCP as number)}
                     {renderSensorControl("指间关节 (IP)", SENSOR_MAP.THUMB_IP)}
                     {renderSensorControl("腕掌关节张开 (Spread)", SENSOR_MAP.THUMB_SPREAD)}
-                    {renderWeightedDisplay("腕掌关节外展 (Abduction)", cardResult.derived.thumbAbduction as number)}
                   </div>
                </div>
 
