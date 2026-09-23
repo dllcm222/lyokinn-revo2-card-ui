@@ -199,12 +199,18 @@ export class MLPTrainer {
   ): Promise<void> {
     const { epochs, learningRate, printInterval } = config;
     const N = inputs.length;
-    const splitIdx = Math.floor(N * 0.8);
-
-    const trainX = inputs.slice(0, splitIdx);
-    const trainY = targets.slice(0, splitIdx);
-    const valX = inputs.slice(splitIdx);
-    const valY = targets.slice(splitIdx);
+    const sampleIndices = Array.from({ length: N }, (_, i) => i);
+    for (let i = sampleIndices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [sampleIndices[i], sampleIndices[j]] = [sampleIndices[j], sampleIndices[i]];
+    }
+    const splitIdx = Math.max(1, Math.min(N - 1, Math.floor(N * 0.8)));
+    const trainIndices = sampleIndices.slice(0, splitIdx);
+    const validationIndices = sampleIndices.slice(splitIdx);
+    const trainX = trainIndices.map(i => inputs[i]);
+    const trainY = trainIndices.map(i => targets[i]);
+    const valX = validationIndices.map(i => inputs[i]);
+    const valY = validationIndices.map(i => targets[i]);
 
     for (let epoch = 0; epoch < epochs; epoch++) {
       // Shuffle training data

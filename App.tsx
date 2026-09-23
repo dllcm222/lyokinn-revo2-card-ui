@@ -1125,7 +1125,12 @@ export default function App() {
               <div className="flex-1 overflow-y-auto">
               <TrainingMode
                 onBack={() => setTrainingMode(false)}
-                onWeightsApplied={() => setMlpWeightsLoaded(true)}
+                onWeightsApplied={(baseline, maxDelta) => {
+                  setMlpBaseline(baseline);
+                  setMlpMaxDelta(maxDelta);
+                  setDecouplerEnabled(true);
+                  setMlpWeightsLoaded(true);
+                }}
                 connected={connected}
                 rawData={rawData}
               />

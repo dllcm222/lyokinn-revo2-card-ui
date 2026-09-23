@@ -129,7 +129,7 @@ export class SerialService {
           while (buffer.length >= FRAME_LEN) {
             // Find header
             let headIdx = -1;
-            for (let i = 0; i <= buffer.length - FRAME_LEN; i++) {
+            for (let i = 0; i < buffer.length - 1; i++) {
               if (buffer[i] === FRAME_HEAD[0] && buffer[i + 1] === FRAME_HEAD[1]) {
                 headIdx = i;
                 break;
@@ -151,6 +151,7 @@ export class SerialService {
               buffer = buffer.slice(headIdx);
             }
 
+            // Keep an incomplete frame in the buffer until the next serial chunk arrives.
             if (buffer.length < FRAME_LEN) break;
 
             const frame = buffer.slice(0, FRAME_LEN);

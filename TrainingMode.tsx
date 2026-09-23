@@ -27,7 +27,7 @@ const TARGET_FRAMES = RECORD_DURATION;
 
 interface Props {
   onBack: () => void;
-  onWeightsApplied: () => void;
+  onWeightsApplied: (baseline: number[], maxDelta: number[]) => void;
   connected: boolean;
   rawData: number[];
 }
@@ -150,7 +150,7 @@ export default function TrainingMode({ onBack, onWeightsApplied, connected, rawD
       setPhase('done');
 
       // Save maxDelta alongside weights for inference normalization
-      const fullResult = { weights, baseline, maxDelta };
+      const fullResult = { weights, baseline, maxDelta: calcMaxDelta };
       localStorage.setItem('mlpWeights', JSON.stringify(fullResult));
     } catch (e: any) {
       setTrainingError(`训练失败: ${e.message}`);
@@ -162,8 +162,9 @@ export default function TrainingMode({ onBack, onWeightsApplied, connected, rawD
   const applyWeights = () => {
     if (!trainedWeights) return;
     mlpDecoupler.setWeights(trainedWeights);
+    mlpDecoupler.reset();
     mlpDecoupler.setEnabled(true);
-    onWeightsApplied();
+    onWeightsApplied(baseline, maxDelta);
   };
 
   const exportData = () => {

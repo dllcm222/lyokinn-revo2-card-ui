@@ -131,6 +131,24 @@ async def handle_client(websocket):
     print("网页前端已连接到本地 Python 网桥")
     if not revo2_device:
         print("注意: 当前没有连接到机械手设备。")
+
+    command_queue = asyncio.Queue(maxsize=1)
+
+    async def send_commands():
+        while True:
+            positions = await command_queue.get()
+            try:
+                device = revo2_device
+                if device:
+                    await device["ctx"].set_finger_positions_and_durations(
+                        device["slave_id"], positions, [30] * 6
+                    )
+            except Exception as e:
+                print(f"发送机械手指令失败: {e}")
+            finally:
+                command_queue.task_done()
+
+    sender_task = asyncio.create_task(send_commands())
         
     try:
         async for message in websocket:
@@ -140,22 +158,22 @@ async def handle_client(websocket):
                     # 期望接收数组: [Thumb, ThumbAux, Index, Middle, Ring, Pinky] (0~1000)
                     positions = data.get("data", [0]*6)
                     if revo2_device:
-                        # 使用 30ms 作为预期持续时间，与前端 33Hz 的更新频率匹配，实现平滑插值，减少抖动
-                        durations = [30] * 6 
-                        
-                        async def send_cmd(slave_id, pos, dur):
-                            try:
-                                await revo2_device["ctx"].set_finger_positions_and_durations(slave_id, pos, dur)
-                            except Exception as e:
-                                # 忽略密集发送期间可能出现的冲突错误
-                                pass
-                                
-                        # 使用 create_task 避免阻塞 WebSocket 接收循环，从而消除延迟积压
-                        asyncio.create_task(send_cmd(revo2_device["slave_id"], positions, durations))
+                        if (not isinstance(positions, list) or len(positions) != 6 or
+                                any(not isinstance(value, (int, float)) for value in positions)):
+                            continue
+                        positions = [max(0, min(1000, round(value))) for value in positions]
+                        # Keep only the newest pending position set while the SDK writes serially.
+                        if command_queue.full():
+                            command_queue.get_nowait()
+                            command_queue.task_done()
+                        command_queue.put_nowait(positions)
             except Exception as e:
                 print(f"处理指令或调用 SDK 失败: {e}")
     except websockets.exceptions.ConnectionClosed:
         print("网页前端连接已断开")
+    finally:
+        sender_task.cancel()
+        await asyncio.gather(sender_task, return_exceptions=True)
 
 async def main():
     global ARGS
