@@ -94,6 +94,7 @@ export default function App() {
       middleAbduction: 0,
       ringAbduction: 0,
       pinkyAbduction: 0,
+      thumbWeightedMCP: 0,
       indexWeightedMCP: 0,
       middleWeightedMCP: 0,
     },
